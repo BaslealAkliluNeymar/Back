@@ -3,7 +3,7 @@ const morgan = require('morgan')
 const cors = require('cors')
 app = express()
 
-
+app.use(express.static('dist'))
 app.use(express.json())
 app.use(cors())
 
@@ -45,6 +45,18 @@ let persons = [
         "number": "+39-23-6423122"
         }
     ]
+app.get('/', (req, res) => {
+    res.send(
+        `<div> 
+            <p>persons has ${persons.length} numbers</p>
+            <p>${new Date().toString()}</p>
+        </div>`
+    );
+});
+    
+app.get('/api',(req,res) =>{
+    res.send('I am here!')
+}) 
 
 
 app.get('/api/persons',(req,res) =>{
@@ -70,9 +82,6 @@ app.get('/api/persons/:id',morgan(':method :url :status :res[content-length] - :
     else{
         res.status(400).end()
     }
-
-
-
 })
 
 app.delete('/api/persons/:id',(req,res) =>{
@@ -108,5 +117,5 @@ app.post('/api/persons',(req,res) =>{
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT,() =>{
-    console.log('Listening on PORT 8000')
+    console.log('Listening on PORT 3001')
 })
