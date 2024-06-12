@@ -1,119 +1,157 @@
+require("dotenv").config()
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+
+const phoneModel = require('./phone')
 app = express()
 
-app.use(express.static('dist'))
 app.use(express.json())
 app.use(cors())
 
-morgan.token('id', (req,res,next) =>{
-    const par = Number(req.params.id)
-    let filter = persons.filter(person => person.id === par)
-    const clean = {
-        name:filter[0].name,
-        number:filter[0].number
-    }
-
-    return JSON.stringify(clean)
-})
-
-let persons = [
-        { 
-          "id": 1,
-          "name": "Arto Hellas", 
-          "number": "040-123456"
-        },
-        { 
-          "id": 2,
-          "name": "Ada Lovelace", 
-          "number": "39-44-5323523"
-        },
-        { 
-          "id": 3,
-          "name": "Dan Abramov", 
-          "number": "12-43-234345"
-        },
-        { 
-          "id": 4,
-          "name": "Mary Poppendieck", 
-          "number": "39-23-6423122"
-        },
-        { 
-        "id": 4,
-        "name": "Basleal Aklilu", 
-        "number": "+39-23-6423122"
-        }
-    ]
-app.get('/', (req, res) => {
-    res.send(
-        `<div> 
-            <p>persons has ${persons.length} numbers</p>
-            <p>${new Date().toString()}</p>
-        </div>`
-    );
-});
+// morgan.token('id', (req,res,next) =>{
     
-app.get('/api',(req,res) =>{
-    res.send('I am here!')
-}) 
+//     // let filter = persons.filter(person => person.id === par)
+//     if(req.params){
+//         const filter = phoneModel.find({_id:req.params.id})
+//         .then(data =>{
+//             return data
+//         })
+//         const clean = {
+//             name:filter.name,
+//             number:filter.number
+//         }
+    
+//         return JSON.stringify(clean)
+//     }
+//     else{
+//         next()
+//     }
+// })
 
-
-app.get('/api/persons',(req,res) =>{
-    res.send(persons)
+app.get('/api/persons',(req,res,next) =>{
+    phoneModel
+    .find({})
+    .then(data =>{
+        res.json(data)
+    })
 })
 
 
-app.get('/info',(req,res) =>{
+app.get('/info',(req,res,next) =>{
+   let long = phoneModel.find({})
+        .then(data =>{
+            return data.length
+        })
     res.send(
         `<div> 
-            <p>persons has ${persons.length} numbers <p>
+            <p>persons has ${long} numbers <p>
             <p>${new Date(0).toString()}</p>
         </div>`
     )
 })
 
-app.get('/api/persons/:id',morgan(':method :url :status :res[content-length] - :response-time ms :id'),(req,res) =>{
-    const par = Number(req.params.id)
-    let filter = persons.filter(person => person.id === par)
-    if(filter.length > 0){
-        res.send(filter)
-    }
-    else{
-        res.status(400).end()
-    }
+app.get('/api/persons/:id'/*morgan(':method :url :status :res[content-length] - :response-time ms :id')*/,(req,res,next) =>{
+    // console.log(req.params.id)
+    phoneModel.find({_id:req.params.id})
+            .then(data =>{
+                if(data){
+                    res.json(data)
+                }
+                else{
+                    res.status(404).end()
+                }
+            })
+            .catch(err => next(err))
+    
 })
 
-app.delete('/api/persons/:id',(req,res) =>{
-    persons = persons.filter(person => person.id !== +req.params.id)
-    res.send(persons)
+app.delete('/api/persons/:id',(req,res,next) =>{
+
+    phoneModel.findByIdAndDelete(req.params.id)
+                .then(data =>{
+                    console.log(data)
+                    res.send(204).end()
+                })
+                .catch(error =>{
+                    console.log('Okay then')
+                })
+    // persons = persons.filter(person => person.id !== +req.params.id)
+    // res.send(persons)
 })
 
+
+app.put('/api/persons/:id',(req,res,next) =>{
+    const newData = req.body
+
+    const content = {
+        name : newData.name,
+        number : newData.number
+    }
+
+
+    phoneModel
+    .findByIdAndUpdate(req.params.id,content, {new:true,runValidators:true,context:'query'})
+    .then(data =>{
+        res.json(data)
+    })
+    .catch(err => console.log(err))
+})
 const generateId = () =>{
-    const maxId = persons.length > 0 ?
-                Math.max(...persons.map(p => p.id))
+    let datas = phoneModel.find({})
+            .then((data) =>{
+                return data
+            })
+    let arr = [] 
+    arr.push(datas)   
+    const maxId = arr.length > 0 ?
+                Math.max(...arr.map(p => p.id))
                 : 0
     return maxId + 1
 }
-app.post('/api/persons',(req,res) =>{
-    const newData = req.body
-    if (!newData | !newData.name | !newData.number){
-        return res.status(400).json({
+
+
+app.post('/api/persons',async (req,res ,next) =>{
+    const {name,number} = req.body
+
+    if ( !name || !number){
+        return res.status(400).send({
             error:"Please enter valid data"
         })
     }
 
-    content = { 
-        "id": generateId(),
-        "name": newData.name, 
-        "number": newData.number  
+    const newContact = new phoneModel({ name, number });
+
+    try{
+        const savedContact = await newContact.save();
+        res.json(savedContact)
     }
-
-    persons = persons.concat(content)
-
-    res.send(persons)
+    catch(error){
+        res.status(400).send(error.errors.name.message);
+    }
 })
 
+const unknownPages = (req,res,next) =>{
+    res.status(404).send({message:"Unknown!"})
+}
+
+
+app.use(unknownPages)
+const errorHandler = (error, req, res,next) =>{
+    if (error.name === "CastError"){
+        res.status(404).send({
+            message:"Error Properly Handled!"
+        })
+    }
+    else if(error.name === "ValidatorError"){
+        res.status(404).send({
+            message:error.name
+        })
+    }
+    // next(error)
+}
+
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT,() =>{
